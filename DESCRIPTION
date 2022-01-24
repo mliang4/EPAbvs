@@ -1,0 +1,11 @@
+Package: EPAbvs
+Type: Package
+Title: Funcional concurrent regression model with spiked-EPA prior
+Version: 1.0
+Date: 2022-01-20
+Author: Mingrui Liang
+Maintainer: Mingrui Liang <ml86@rice.edu>
+Description: Performs variable selection and clustering simultaneously using the Funcional concurrent (logistic) regression model with spiked-EPA priors. 
+License: MIT + file LICENSE
+Imports: Rcpp (>= 1.0.7), RcppArmadillo (>= 0.9.800.1.0)
+LinkingTo: Rcpp, RcppArmadillo

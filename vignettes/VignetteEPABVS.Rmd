@@ -1,0 +1,137 @@
+---
+title: "EPABVS-Vignette"
+output: rmarkdown::html_vignette
+author: "Mingrui Liang, Matthew D. Koslovsky and Marina Vannucci"
+vignette: >
+  %\VignetteIndexEntry{EPABVS-Vignette}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+# editor_options: 
+#   chunk_output_type: console
+---
+```{r , echo = FALSE, warning=FALSE, results='hide',message=FALSE}
+library(EPAbvs)
+library(pander)
+library(pheatmap)
+library(ggplot2)
+load("vigTest.RData")
+```
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width=7, 
+  fig.height=7, 
+  fig.align = "center"
+)
+```
+
+In this tutorial, we demonstrate how to implement the underlying method introduced in paper *Functional Concurrent Regression Mixture Models Using Spiked Ewens-Pitman Attraction Priors*, using the `EPAbvs` package, which performs a global-local marginal selection and marginal clustering using the spiked-Ewens-Pitman Attraction priors and the horseshoe priors, under the logistic regression framework. Additionally, we provide functionality to simulate data for sensitivity and simulation studies as well as to perform posterior inference. 
+
+The package installation and loading can be done by simply running the `R` command
+
+```{r, eval=FALSE}
+devtools::install_github("mliang4/EPAbvs")
+load(EPAbvs)
+```
+
+We begin by generating a data set using the `genData()` function in our package. 
+```{r, eval=FALSE}
+data = genData(P = 5, seed = 1)
+```
+By default, the algorithm simulates `P = 15` covariates $\boldsymbol{X}$, including 14 continuous covariates and an intercept term, for `n=60` subjects with `n_i=60` observations each. For simplicity, we use `P=5` in this tutorial. Note that `P` cannot be less than 3 for `genData()` to function properly. `n_i` can also to be set as a vector to represent potentially different observation per subject. For simplicity, continuous covariates are simulated from a standard multivariate normal distribution. Correlation between the continuous covariates are set to `cor=0.3` by default. Half of the covariates are allowed to jitter from their base value by adding random noise simulated from a standard normal distribution to mimic time-dependent trajectories. 
+
+For this tutorial, we use a data set similar to the data described in the simulation section of the accompanying manuscript. The first three smooth functions $\mathcal{B}(\cdot)$ are defined so that the clustering patterns are different across subjects. Specifically, for the first 1/3 of the subject, the truth of $\mathcal{B}_{i1}(\cdot)$ to $\mathcal{B}_{i3}(\cdot)$ are set as $f_2(\cdot)$, $f_3(\cdot)$ and $f_1(\cdot)$; for the middle 1/3 of the subject $f_5(\cdot)$, $f_4(\cdot)$ and $f_1(\cdot)$; for the last 1/3, $f_5(\cdot)$, $f_3(\cdot)$ and $f_6(\cdot)$, where $f_1(\cdot)$ to $f_6(\cdot)$ are set as:
+
+$$f_1(t_{ij}) = \pi t_{ij} \cos(5\pi t_{ij}) - 1.2t_{ij}$$
+$$f_2(t_{ij}) = \pi\sin(3\pi t_{ij}) + 1.4t_{ij} - 1.6$$
+$$f_3(t_{ij}) = \pi \cos(2\pi t_{ij}) + 1.6$$
+$$f_4(t_{ij}) =  - \pi \cos(2\pi t_{ij}) + 1.6t_{ij}$$
+$$f_5(t_{ij}) =  \pi\sin(5\pi t_{ij}) -  \cos(\pi t_{ij})$$
+$$f_6(t_{ij}) =  0$$
+
+The algorithm also simulates a pairwise distance matrix among all subjects, created from the distance covariate matrix `dist_x`, which by default has `n` rows and $p_d=4$ columns and consists of two binary covariates and two continuous covariates. Note that the `dist_x` matrix can also be other $n$-by-$p_d$ matrix of a user's choice. For the first 1/3, middle 1/3 and last 1/3 of the subjects, both binary covariates are generated from Bernoulli distributions with mean 0.9, 0.1, and 0.5, and continuous covariates are generated from normal distributions with mean −3, 0, and 3 and variance 1. This setup creates separation between subjects corresponding to the clustering truth.
+
+Each object produced by the `genData()` function contains the following:
+```{r, echo = FALSE }
+str(data)
+```
+where `Y` is a vector of output, `T` is the observation time, both for all subjects and with length $\sum_{i} n_i$. `X` is the covariate matrix with size $\sum_{i} n_i \times P$. `dist` is a $n$-by-$n$ symmetric matrix representing pairwise distance matrix.
+
+```{r, eval = FALSE }
+res = bvsEPA( iter = 1000, n_i = data$n_i, Y = data$Y, X = as.matrix(data$X), T = data$T, dist = as.matrix(data$dist), simfunc = 2, seed = 123 )
+```
+
+Here, `n_i` must be a vector of length $n$ representing the number of observation for each subject. `Y`, `X`, `T` and `dist` should be formatted as described above. `simfunc` can be set to either 1, 2 or 3 representing the window, exponential (default) and logistic similarity function. Although not required, users can specify the number of subjects to be updated by a between step at one time (a vector of numbers between 1 and `n`), as well as the covariates that are allowed to have trivial clusters (a vector of numbers between 1 and `P`) using the `n_betn` and `flex_covas` parameters. All other hyperparamters can be adjusted, but we recommend using the default settings as a starting point. The object produced by `bvsEPA()` contains the following items:
+
+```{r, echo = FALSE }
+str(res)
+```
+
+where `mcmc` is a list of MCMC samples for the regression coefficients, `beta` and `xi`, cluster assignments `s`, and the corresponding inclusion indicators, `gamma`, along with the MCMC samples for the nuisance parameters outlined in the main manuscript. Additionally, the remaining items of the list contain information regarding computation time, `mcmc_time`, basis functions `Tstar` generated for observation time `T`.
+
+For posterior inference, we start by our novel post-hoc partition summary method to handle spiked processes. We treat the first 500 iterations as burn-in. For the MCMC samples from `EPAbvs`, the following code give us the post-hoc partition `s` (a $n$-by-$P$ matrix indicating the clustering assignment for each subject at each smooth function) using only active samples with quick visualization by a heatmap. By providing the clustering truth, we can also have a clustering performance.
+
+```{r, warning=FALSE, message=FALSE}
+burnin = 500; iter = res$iter
+### clustering truth
+trueClus = c(rep(1,20),rep(2,40),
+            rep(1,20),rep(2,20),rep(1,20),
+            rep(1,40),rep(0,20),
+            rep(0,60*2))
+trueClus = matrix(trueClus, ncol = 5, byrow = F)
+clusOut = clustering(res$mcmc$s[,,(burnin+1):iter], res$mcmc$gamma[,,(burnin+1):iter],true_clust = trueClus)
+s = clusOut$clus
+colnames(s) = paste0("B", c(1:5))
+pheatmap(s, cluster_rows = FALSE, cluster_cols = FALSE, main = "Partition summary for smooth function 1-5")
+print(clusOut$clus_perf) ### clustering performance
+``` 
+
+The result above indicates good clustering performance (for more details about interpreting the clustering performance, please see the manuscript). In fact, the clustering is off for only 1 subject in the second smooth function.
+
+We also provide functionality to determine the global inclusion based on the marginal posterior probabilities of inclusion (MPPI) using the median model approach (MPPI > 0.5), and to evaluate global selection performance if the true global selection indicator matrix is provided, using the following code:
+
+```{r, warning=FALSE, message=FALSE}
+gammaT = cbind(
+    rep(1,60),
+    rep(1,60),
+    c(rep(1,40), rep(0,20)),
+    rep(0,60),
+    rep(0,60)
+  ) ### true global selection indicators
+
+selOut = gSelect2d(
+  sel_samples = res$mcmc$gamma[,,(burnin+1):iter], # N by P by iter matrix
+  truth = gammaT # N by P matrix,
+)
+pheatmap(selOut$g_mppi, cluster_rows = FALSE, cluster_cols = FALSE, main = "MPPI in smooth function 1-5") ### quickly visualize the MPPI
+print(selOut$g_perf)
+``` 
+
+For a `gSelect2d` object, `g_mppi` returns the MPPI, `g_sel` returns the inclusion indicator matrix ($n$-by-$P$) and `g_perf` returns the selection performance (if available). The result indicates perfect global selection performance (for more details about interpreting the selection performance, please see the manuscript).
+
+To further determine the local structure, we use the `lSelect` function with arguments that take in the bvsEPA output (`bvsEPA_out`), the post-hoc clustering partition (`s`) and the number of burnin. By setting `plot` to `TRUE`, the credible interval (CI) of all $\beta$ coefficients in all active clusters would be included in a figure.
+
+```{r, warning=FALSE, message=FALSE}
+lsel = lSelect(bvsEPA_out = res, s = s, burnin = 500, plot = TRUE)
+print(lsel)
+``` 
+
+We determine inactive $\beta$ terms if the 95\% CI contains zero. In the output (`lsel`), our result is only off by the non-linear interaction term in smooth function 2, cluster 1. Note that we recommend the local structure for the intercept terms should be used with caution, since the error terms are absorbed by the intercept in our model setting.
+
+Lastly, we also provide functionality to plot the varying-coefficients. By calling the `plotSf()` function and providing the MCMC output (`bvsEPA_out`), the partition assignment (`s`), as well as the index of the smooth function you are interested in plotting (`sf`), a plot is generated of the estimated smooth function with corresponding 95% pointwise credible intervals. The trajectory of the truth function `truth` would also be attached if provided. We provide the flexibility of plotting the smooth function of a single subject (using `plot_subj`), or plotting the median effect within a specific cluster (using `sfClus`), or the median effect of all clusters in this smooth function if neither arguments are provided. For example,
+
+```{r, warning=FALSE, message=FALSE}
+# plot a subject
+plotSf( bvsEPA_out = res, s = s, sf = 1, plot_subj = 2, burnin = 500, 
+        xlab = 'Time', ylab = NULL, main = NULL, truth = data$f2, rm_legend = F ) 
+# plot a cluster
+plotSf( bvsEPA_out = res, s = s, sf = 1, sfClus = 2, burnin = 500, 
+        xlab = 'Time', ylab = NULL, main = NULL, truth = data$f5, rm_legend = F )
+# plot all clusters
+plotSf( bvsEPA_out = res, s = s, sf = 1, burnin = 500, 
+        xlab = 'Time', ylab = NULL, main = NULL, rm_legend = F )
+``` 
+
+Note that `plot_subj` and `sfClus` cannot be used at the same time. The legend of the plot can be removed by setting `rm_legend = T`.
+
