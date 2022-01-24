@@ -10,15 +10,15 @@ Various functions are available that produce, summarize, and plot the results fo
 This package relies on various R packages that need to be installed in the R environment before running. 
 To install, use the install.packages("") command for the following packages:  
 
-  Rcpp   
-  RcppArmadillo  
-  mcclust  
-  spikeSlabGAM  
-  MCMCpack  
-  mvtnorm  
-  ggplot2
+  'Rcpp'   
+  'RcppArmadillo'  
+  'mcclust'  
+  'spikeSlabGAM'  
+  'MCMCpack'  
+  'mvtnorm'  
+  'ggplot2'
 and also 
-  devtools
+  'devtools'
 
 To install the package, download the ‘EPAbvs’ folder and set the working directory in Rstudio to its path, then run  
   library( devtools )  
