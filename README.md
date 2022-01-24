@@ -17,6 +17,7 @@ To install, use the install.packages("") command for the following packages:
   MCMCpack  
   mvtnorm  
   ggplot2
+and also 
   devtools
 
 To install the package, download the ‘EPAbvs’ folder and set the working directory in Rstudio to its path, then run  
