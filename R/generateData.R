@@ -218,7 +218,7 @@ genData = function(
     "X" = X_ij,
     "dist" = dist,
     "n_i" = n_i,
-    "T" = T,
+    "T" = T
      )
   return( data_sim ) 
 }
