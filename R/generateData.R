@@ -4,7 +4,9 @@ genData = function(
   n_i = 60, # a number or a vector represent observations of each subject
   cor = 0.3, # correlation between continuous covariates
   dist_x = NULL,
-  seed = 121113
+  seed = 121113,
+  shuffle = TRUE,
+  shuffle_seed = 123
 ){
   
   library( mvtnorm )
@@ -52,7 +54,7 @@ genData = function(
   
   # Replicate some and make the others wander
   X_ij <- numeric()
-  cols <- sample( seq(1,P), floor( P/2 ) )
+  cols <- sample( seq(2,P), floor( P/2 ) )
   
   # cols <- c(2,3,4,5)
   for( i in 1:N ){
@@ -100,24 +102,24 @@ genData = function(
   # Ustar_dems - Input vector of dimensions for each spline function. Element is equal to starting indicies for corresponding p. Last term is number of columns. Ustar_dems[ 0 ] = 0 and length = P + 1
   # Allows for only one input for U
   
-  # if( ncol( as.matrix( U ) ) == 1 ){
-  #   Ustar <- numeric()
-  #   Ustar_dems <- c( 0 )
-  #   tmp <- sm( U, rankZ = 0.995 )
-  #   for( p in 1:P ){
-  #     Ustar <- cbind( Ustar, tmp )
-  #     Ustar_dems <- c( Ustar_dems, ( Ustar_dems[ p ] + ncol( tmp ) ) )
-  #   }
-  #   U <- matrix( rep( U, P ), ncol = P , nrow = length( Y ) )
-  # }else{
-  #   Ustar <- numeric()
-  #   Ustar_dems <- c( 0 )
-  #   for( p in 1:ncol( U ) ){
-  #     tmp <- sm( U[ , p ], rankZ = 0.995 )
-  #     Ustar <- cbind( Ustar, tmp )
-  #     Ustar_dems <- c( Ustar_dems, ( Ustar_dems[ p ] + ncol( tmp ) ) )
-  #   }
-  # }
+  if( ncol( as.matrix( U ) ) == 1 ){
+    Ustar <- numeric()
+    Ustar_dems <- c( 0 )
+    tmp <- sm( U, rankZ = 0.995 )
+    for( p in 1:P ){
+      Ustar <- cbind( Ustar, tmp )
+      Ustar_dems <- c( Ustar_dems, ( Ustar_dems[ p ] + ncol( tmp ) ) )
+    }
+    U <- matrix( rep( U, P ), ncol = P , nrow = length( Y ) )
+  }else{
+    Ustar <- numeric()
+    Ustar_dems <- c( 0 )
+    for( p in 1:ncol( U ) ){
+      tmp <- sm( U[ , p ], rankZ = 0.995 )
+      Ustar <- cbind( Ustar, tmp )
+      Ustar_dems <- c( Ustar_dems, ( Ustar_dems[ p ] + ncol( tmp ) ) )
+    }
+  }
   
   # Matrix of barX. Rows indexed by ij. Columns indexed by 2P ( x1u, x1, x2u, x2,...xPu, xP )
   Xbar <- numeric()
@@ -207,6 +209,32 @@ genData = function(
   prob <- exp( psi )/( 1 + exp( psi ) )
   Y <- rbinom( length(prob) , 1 , prob )
   
+  
+  # shuffle dataset
+    # Things that need to be shuffled:
+    # X_ij,
+    # Y,
+    # T,
+    # dist
+  
+  
+  if(shuffle){
+    set.seed(shuffle_seed)
+    shuffle = sample(N)
+  }else{
+    shuffle = c(1:N)
+  }
+  
+  shuff_index = NULL
+  for (i in shuffle){
+    shuff_index = c(shuff_index, which(o2sind == i))
+  }
+  
+  dist = dist[shuffle,shuffle]
+  T = T[shuff_index]
+  Y = Y[shuff_index]
+  X_ij = X_ij[shuff_index, ]
+
   data_sim <- list( 
     "f1" = f1,
     "f2" = f2,
@@ -218,7 +246,9 @@ genData = function(
     "X" = X_ij,
     "dist" = dist,
     "n_i" = n_i,
-    "T" = T
+    "T" = T,
+    "order" = shuffle,
+    "o2s_order" = shuff_index
      )
   return( data_sim ) 
 }
