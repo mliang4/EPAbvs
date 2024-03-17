@@ -4,7 +4,7 @@ This folder contains the code of the Rcpp package EPAbvs for the manuscript:
 
 Functional Concurrent Regression Mixture Models Using Spiked Ewens-Pitman Attraction Priors
 
-by Mingrui Liang, Matthew D. Koslovsky and Marina Vannucci
+by Mingrui Liang, Matthew D. Koslovsky, Emily T. Hébert, Michael S. Businelle, and Marina Vannucci
 
 The main functions operate in C++ via the R package Rcpp. 
 These functions can be sourced by a set of wrapper functions that enable easy implementation of the code in the R environment. 
